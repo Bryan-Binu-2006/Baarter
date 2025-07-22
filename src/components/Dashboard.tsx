@@ -6,6 +6,8 @@ import { listingService } from '../services/listingService';
 import { communityService } from '../services/communityService';
 import { CreateListing } from './CreateListing';
 import { BarterRequestModal } from './BarterRequestModal';
+import TrustScoreDisplay from './TrustScoreDisplay';
+import { calculateTrustScore } from '../services/trustScoreService';
 
 interface Listing {
   id: string;
@@ -107,6 +109,13 @@ export function Dashboard() {
   const handleBarterRequest = (listing: Listing) => {
     setSelectedListing(listing);
     setShowBarterModal(true);
+  };
+
+  const handleRemoveListing = async (listingId: string) => {
+    if (window.confirm('Are you sure you want to remove this listing?')) {
+      await listingService.deleteListing(listingId);
+      loadData();
+    }
   };
 
   if (!selectedCommunity) return null;
@@ -259,6 +268,15 @@ export function Dashboard() {
                   </div>
                 </div>
               </div>
+              {/* Trust Score */}
+              <TrustScoreDisplay trustScore={calculateTrustScore({
+                id: member.id,
+                email: member.email,
+                name: member.name,
+                createdAt: member.joinedAt,
+                isProfileComplete: true, // Assume true for demo
+                trustScore: 80, // fallback only
+              })} />
             </div>
           ))}
         </div>
@@ -352,10 +370,41 @@ export function Dashboard() {
               </div>
 
               <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-gray-600 flex items-center space-x-2">
                   By {listing.userName}
+                  {/* Trust Score for listing owner */}
+                  <TrustScoreDisplay trustScore={calculateTrustScore(
+                    (() => {
+                      const owner = members.find(m => m.id === listing.userId);
+                      if (owner) {
+                        return {
+                          id: owner.id,
+                          email: owner.email,
+                          name: owner.name,
+                          createdAt: owner.joinedAt,
+                          isProfileComplete: true,
+                          trustScore: 80,
+                        };
+                      }
+                      return {
+                        id: '',
+                        email: '',
+                        name: '',
+                        createdAt: '',
+                        isProfileComplete: false,
+                        trustScore: 80,
+                      };
+                    })()
+                  )} />
                 </div>
-                {listing.userId !== user?.id && (
+                {listing.userId === user?.id ? (
+                  <button
+                    onClick={() => handleRemoveListing(listing.id)}
+                    className="flex items-center space-x-2 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors"
+                  >
+                    Remove Listing
+                  </button>
+                ) : listing.userId !== user?.id && (
                   <button
                     onClick={() => handleBarterRequest(listing)}
                     className="flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"

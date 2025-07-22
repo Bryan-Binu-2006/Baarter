@@ -5,6 +5,7 @@ import { User, LoginCredentials, SignupCredentials } from '../types/auth';
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
+  isProfileComplete: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
   signup: (credentials: SignupCredentials) => Promise<void>;
   logout: () => void;
@@ -53,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider value={{
       user,
       isAuthenticated: !!user,
+      isProfileComplete: !!user?.isProfileComplete,
       login,
       signup,
       logout,

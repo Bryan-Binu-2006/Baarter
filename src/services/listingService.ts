@@ -58,10 +58,10 @@ class ListingService {
   }
 
   async deleteListing(id: string): Promise<void> {
-    // Mock implementation for demo
     await new Promise(resolve => setTimeout(resolve, 500));
-
-    // In a real implementation, this would delete the listing
+    const allListings = JSON.parse(localStorage.getItem('communityListings') || '[]');
+    const updatedListings = allListings.filter((listing: any) => listing.id !== id);
+    localStorage.setItem('communityListings', JSON.stringify(updatedListings));
   }
 }
 

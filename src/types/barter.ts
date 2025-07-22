@@ -6,8 +6,11 @@ export interface BarterRequest {
   ownerId: string;
   ownerName: string;
   offerDescription: string;
-  status: 'pending' | 'accepted' | 'rejected' | 'completed';
-  confirmationCode?: string;
+  status: 'pending' | 'owner_accepted' | 'both_accepted' | 'rejected' | 'completed';
+  ownerConfirmationCode?: string;
+  requesterConfirmationCode?: string;
+  ownerConfirmed?: boolean;
+  requesterConfirmed?: boolean;
   createdAt: string;
   listing: {
     id: string;

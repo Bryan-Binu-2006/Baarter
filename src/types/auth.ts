@@ -3,6 +3,16 @@ export interface User {
   email: string;
   name: string;
   createdAt: string;
+  // Profile fields
+  fullName?: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  bio?: string;
+  isProfileComplete?: boolean;
+  trustScore?: number;
 }
 
 export interface LoginCredentials {

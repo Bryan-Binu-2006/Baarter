@@ -1,11 +1,25 @@
-import React from 'react';
-import { LogOut, ArrowLeft } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { LogOut, ArrowLeft, Bell } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useCommunity } from '../contexts/CommunityContext';
+import BarterRequestsModal from './BarterRequestsModal';
+import NotificationCenter from './NotificationCenter';
+import { notificationService } from '../services/notificationService';
 
 export function Navigation() {
   const { user, logout } = useAuth();
   const { selectedCommunity, selectCommunity } = useCommunity();
+  const [showRequests, setShowRequests] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    setUnreadCount(notificationService.getUnreadCount());
+    const interval = setInterval(() => {
+      setUnreadCount(notificationService.getUnreadCount());
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -40,6 +54,27 @@ export function Navigation() {
                   <ArrowLeft size={16} />
                   <span className="hidden sm:inline">Switch</span>
                 </button>
+                {/* Barter Requests Button */}
+                <button
+                  onClick={() => setShowRequests(true)}
+                  className="flex items-center space-x-1 text-sm text-emerald-600 hover:text-emerald-800 transition-colors ml-2"
+                  title="View Barter Requests"
+                >
+                  <span>Requests</span>
+                </button>
+                <BarterRequestsModal open={showRequests} onClose={() => setShowRequests(false)} />
+                {/* Notification Bell */}
+                <button
+                  onClick={() => setShowNotifications(true)}
+                  className="relative flex items-center text-gray-500 hover:text-emerald-600 transition-colors ml-2"
+                  title="Notifications"
+                >
+                  <Bell size={20} />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5">{unreadCount}</span>
+                  )}
+                </button>
+                <NotificationCenter open={showNotifications} onClose={() => setShowNotifications(false)} />
               </>
             )}
           </div>

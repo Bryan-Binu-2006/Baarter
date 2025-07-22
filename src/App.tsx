@@ -7,11 +7,15 @@ import { CommunitySelector } from './components/CommunitySelector';
 import { Dashboard } from './components/Dashboard';
 import { useAuth } from './hooks/useAuth';
 import { useCommunity } from './hooks/useCommunity';
+import ProfileSetup from './components/ProfileSetup';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import BarterConfirmPage from './components/BarterConfirmPage';
 
 function AppContent() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isProfileComplete } = useAuth();
   const { selectedCommunity } = useCommunity();
   const [currentView, setCurrentView] = useState<'auth' | 'community' | 'dashboard'>('auth');
+  const [profileUser, setProfileUser] = useState(user);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -22,6 +26,17 @@ function AppContent() {
       setCurrentView('dashboard');
     }
   }, [isAuthenticated, selectedCommunity]);
+
+  // Show profile setup if authenticated but not complete
+  if (isAuthenticated && !isProfileComplete && user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-blue-50 to-indigo-50">
+        <main className="container mx-auto px-4 py-8">
+          <ProfileSetup user={user} onComplete={() => window.location.reload()} />
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-blue-50 to-indigo-50">
@@ -38,11 +53,16 @@ function AppContent() {
 
 function App() {
   return (
-    <AuthProvider>
-      <CommunityProvider>
-        <AppContent />
-      </CommunityProvider>
-    </AuthProvider>
+    <BrowserRouter>
+      <AuthProvider>
+        <CommunityProvider>
+          <Routes>
+            <Route path="/confirm-barter/:id" element={<BarterConfirmPage />} />
+            <Route path="*" element={<AppContent />} />
+          </Routes>
+        </CommunityProvider>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
 
