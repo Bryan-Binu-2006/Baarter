@@ -28,8 +28,8 @@ interface CommunityMember {
   name: string;
   email: string;
   joinedAt: string;
-  isAdmin: boolean;
   isOnline: boolean;
+  role: 'admin' | 'coadmin' | 'member';
 }
 
 interface Message {
@@ -42,7 +42,7 @@ interface Message {
 }
 
 export function Dashboard() {
-  const { selectedCommunity } = useCommunity();
+  const { selectedCommunity, removeMember, promoteToCoadmin, demoteCoadmin, refreshCommunities } = useCommunity();
   const { user } = useAuth();
   const [activeView, setActiveView] = useState<'overview' | 'users' | 'listings' | 'chat'>('overview');
   const [showCreateListing, setShowCreateListing] = useState(false);
@@ -56,9 +56,23 @@ export function Dashboard() {
   const [showBarterModal, setShowBarterModal] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  const CHAT_KEY_PREFIX = 'communityChat_';
+
   useEffect(() => {
     if (selectedCommunity) {
       loadData();
+      // Load chat history from localStorage
+      const chatKey = CHAT_KEY_PREFIX + selectedCommunity.id;
+      const saved = localStorage.getItem(chatKey);
+      setMessages(saved ? JSON.parse(saved) : []);
+      // Start polling for new messages
+      const interval = setInterval(() => {
+        const updated = localStorage.getItem(chatKey);
+        if (updated) {
+          setMessages(JSON.parse(updated));
+        }
+      }, 1500);
+      return () => clearInterval(interval);
     }
   }, [selectedCommunity]);
 
@@ -85,16 +99,20 @@ export function Dashboard() {
 
   const sendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (newMessage.trim()) {
+    if (newMessage.trim() && selectedCommunity) {
+      const chatKey = CHAT_KEY_PREFIX + selectedCommunity.id;
       const message: Message = {
         id: Date.now().toString(),
         content: newMessage.trim(),
         userId: user?.id || '1',
         userName: user?.name || 'You',
         timestamp: new Date().toISOString(),
-        type: 'message'
+        type: 'message',
       };
-      setMessages(prev => [...prev, message]);
+      const prev = JSON.parse(localStorage.getItem(chatKey) || '[]');
+      const updated = [...prev, message];
+      localStorage.setItem(chatKey, JSON.stringify(updated));
+      setMessages(updated);
       setNewMessage('');
     }
   };
@@ -116,6 +134,25 @@ export function Dashboard() {
       await listingService.deleteListing(listingId);
       loadData();
     }
+  };
+
+  const handleRemoveMember = async (targetId: string) => {
+    if (!selectedCommunity || !user) return;
+    if (window.confirm('Are you sure you want to remove this member?')) {
+      await removeMember(selectedCommunity.id, targetId, user.id);
+      await loadData();
+      await refreshCommunities();
+    }
+  };
+  const handlePromote = async (targetId: string) => {
+    if (!selectedCommunity || !user) return;
+    await promoteToCoadmin(selectedCommunity.id, targetId, user.id);
+    loadData();
+  };
+  const handleDemote = async (targetId: string) => {
+    if (!selectedCommunity || !user) return;
+    await demoteCoadmin(selectedCommunity.id, targetId, user.id);
+    loadData();
   };
 
   if (!selectedCommunity) return null;
@@ -220,69 +257,108 @@ export function Dashboard() {
     </div>
   );
 
-  const renderUsers = () => (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-      <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-gray-900 flex items-center space-x-2">
-            <Users size={24} />
-            <span>Community Members</span>
-          </h2>
-          <span className="text-sm text-gray-500">
-            {members.length} {members.length === 1 ? 'member' : 'members'}
-          </span>
+  const renderUsers = () => {
+    // Derive myRole from members array
+    const myRole = members.find(m => m.id === user?.id)?.role;
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-gray-900 flex items-center space-x-2">
+              <Users size={24} />
+              <span>Community Members</span>
+            </h2>
+            <span className="text-sm text-gray-500">
+              {members.length} {members.length === 1 ? 'member' : 'members'}
+            </span>
+          </div>
         </div>
-      </div>
 
-      <div className="p-6">
-        <div className="space-y-4">
-          {members.map((member) => (
-            <div
-              key={member.id}
-              className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
-            >
-              <div className="flex items-center space-x-4">
-                <div className="relative">
-                  <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
-                    <span className="text-emerald-600 font-medium">
-                      {member.name.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  {member.isOnline && (
-                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
-                  )}
-                </div>
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <h3 className="font-medium text-gray-900">{member.name}</h3>
-                    {member.isAdmin && (
-                      <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">
-                        Admin
+        <div className="p-6">
+          <div className="space-y-4">
+            {members.map((member) => (
+              <div
+                key={member.id}
+                className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
+              >
+                <div className="flex items-center space-x-4">
+                  <div className="relative">
+                    <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
+                      <span className="text-emerald-600 font-medium">
+                        {member.name.charAt(0).toUpperCase()}
                       </span>
+                    </div>
+                    {member.isOnline && (
+                      <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
                     )}
                   </div>
-                  <p className="text-sm text-gray-600">{member.email}</p>
-                  <div className="flex items-center space-x-1 text-xs text-gray-500 mt-1">
-                    <Calendar size={12} />
-                    <span>Joined {new Date(member.joinedAt).toLocaleDateString()}</span>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <h3 className="font-medium text-gray-900">{member.name}</h3>
+                      {member.role === 'admin' && (
+                        <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">Admin</span>
+                      )}
+                      {member.role === 'coadmin' && (
+                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">Co-Admin</span>
+                      )}
+                      {member.role === 'member' && (
+                        <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full">Member</span>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-600">{member.email}</p>
+                    <div className="flex items-center space-x-1 text-xs text-gray-500 mt-1">
+                      <Calendar size={12} />
+                      <span>Joined {new Date(member.joinedAt).toLocaleDateString()}</span>
+                    </div>
                   </div>
                 </div>
+                {/* Trust Score */}
+                <TrustScoreDisplay trustScore={calculateTrustScore({
+                  id: member.id,
+                  email: member.email,
+                  name: member.name,
+                  createdAt: member.joinedAt,
+                  isProfileComplete: true,
+                  trustScore: 80,
+                })} />
+                {/* Admin/Co-Admin Controls */}
+                {user && selectedCommunity && user.id !== member.id && (
+                  <div className="flex space-x-2">
+                    {/* Remove button: admin can remove anyone but self, coadmin can remove members only */}
+                    {((myRole === 'admin' && member.role !== 'admin') || (myRole === 'coadmin' && member.role === 'member')) && (
+                      <button
+                        onClick={() => handleRemoveMember(member.id)}
+                        className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-xs"
+                      >
+                        Remove
+                      </button>
+                    )}
+                    {/* Promote/Demote: admin only */}
+                    {myRole === 'admin' && member.role === 'member' && (
+                      <button
+                        onClick={() => handlePromote(member.id)}
+                        className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs"
+                      >
+                        Promote to Co-Admin
+                      </button>
+                    )}
+                    {myRole === 'admin' && member.role === 'coadmin' && (
+                      <button
+                        onClick={() => handleDemote(member.id)}
+                        className="px-2 py-1 bg-gray-400 text-white rounded hover:bg-gray-500 text-xs"
+                      >
+                        Demote
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
-              {/* Trust Score */}
-              <TrustScoreDisplay trustScore={calculateTrustScore({
-                id: member.id,
-                email: member.email,
-                name: member.name,
-                createdAt: member.joinedAt,
-                isProfileComplete: true, // Assume true for demo
-                trustScore: 80, // fallback only
-              })} />
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderListings = () => (
     <div className="space-y-6">

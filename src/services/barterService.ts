@@ -43,6 +43,8 @@ class BarterService {
       ownerId,
       ownerName,
       offerDescription: data.offerDescription,
+      offerValue: data.offerValue,
+      offerType: data.offerType,
       status: 'pending',
       createdAt: new Date().toISOString(),
       listing: {

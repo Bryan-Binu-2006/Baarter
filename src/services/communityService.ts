@@ -61,7 +61,7 @@ class CommunityService {
     userMemberships.push({
       userId: currentUser.id,
       communityId: mockCommunity.id,
-      isAdmin: true,
+      role: 'admin',
       joinedAt: new Date().toISOString()
     });
     localStorage.setItem('userMemberships', JSON.stringify(userMemberships));
@@ -90,6 +90,13 @@ class CommunityService {
       throw new Error('Community not found. Please check the code and try again.');
     }
 
+    // Check if banned
+    const bannedKey = `banned_${community.id}`;
+    const banned = JSON.parse(localStorage.getItem(bannedKey) || '[]');
+    if (banned.includes(currentUser.id)) {
+      throw new Error('You have been removed from this community and cannot rejoin.');
+    }
+
     // Check if already a member
     const userMemberships = JSON.parse(localStorage.getItem('userMemberships') || '[]');
     const existingMembership = userMemberships.find((m: any) => 
@@ -104,7 +111,7 @@ class CommunityService {
     userMemberships.push({
       userId: currentUser.id,
       communityId: community.id,
-      isAdmin: false,
+      role: 'member',
       joinedAt: new Date().toISOString()
     });
     localStorage.setItem('userMemberships', JSON.stringify(userMemberships));
@@ -132,12 +139,63 @@ class CommunityService {
         name: user?.name || 'Unknown User',
         email: user?.email || 'unknown@example.com',
         joinedAt: membership.joinedAt,
-        isAdmin: membership.isAdmin,
+        role: membership.role || (membership.isAdmin ? 'admin' : 'member'),
         isOnline: Math.random() > 0.5 // Random online status for demo
       };
     });
 
     return members;
+  }
+
+  async removeMember(communityId: string, targetUserId: string, actingUserId: string): Promise<void> {
+    const userMemberships = JSON.parse(localStorage.getItem('userMemberships') || '[]');
+    const acting = userMemberships.find((m: any) => m.userId === actingUserId && m.communityId === communityId);
+    const target = userMemberships.find((m: any) => m.userId === targetUserId && m.communityId === communityId);
+    if (!acting || !target) throw new Error('Membership not found');
+    if (acting.role === 'admin') {
+      // Admin can remove anyone
+      if (target.role === 'admin') throw new Error('Admin cannot remove themselves');
+    } else if (acting.role === 'coadmin') {
+      // Coadmin can remove members only
+      if (target.role !== 'member') throw new Error('Coadmin can only remove members');
+    } else {
+      throw new Error('Insufficient permissions');
+    }
+    const updated = userMemberships.filter((m: any) => !(m.userId === targetUserId && m.communityId === communityId));
+    localStorage.setItem('userMemberships', JSON.stringify(updated));
+    // Add to banned list
+    const bannedKey = `banned_${communityId}`;
+    const banned = JSON.parse(localStorage.getItem(bannedKey) || '[]');
+    if (!banned.includes(targetUserId)) {
+      banned.push(targetUserId);
+      localStorage.setItem(bannedKey, JSON.stringify(banned));
+    }
+    // Remove all listings by this user in this community
+    const allListings = JSON.parse(localStorage.getItem('communityListings') || '[]');
+    const filteredListings = allListings.filter((listing: any) => !(listing.userId === targetUserId && listing.communityId === communityId));
+    localStorage.setItem('communityListings', JSON.stringify(filteredListings));
+  }
+
+  async promoteToCoadmin(communityId: string, targetUserId: string, actingUserId: string): Promise<void> {
+    const userMemberships = JSON.parse(localStorage.getItem('userMemberships') || '[]');
+    const acting = userMemberships.find((m: any) => m.userId === actingUserId && m.communityId === communityId);
+    const target = userMemberships.find((m: any) => m.userId === targetUserId && m.communityId === communityId);
+    if (!acting || !target) throw new Error('Membership not found');
+    if (acting.role !== 'admin') throw new Error('Only admin can promote to coadmin');
+    if (target.role === 'admin') throw new Error('Cannot promote admin');
+    target.role = 'coadmin';
+    localStorage.setItem('userMemberships', JSON.stringify(userMemberships));
+  }
+
+  async demoteCoadmin(communityId: string, targetUserId: string, actingUserId: string): Promise<void> {
+    const userMemberships = JSON.parse(localStorage.getItem('userMemberships') || '[]');
+    const acting = userMemberships.find((m: any) => m.userId === actingUserId && m.communityId === communityId);
+    const target = userMemberships.find((m: any) => m.userId === targetUserId && m.communityId === communityId);
+    if (!acting || !target) throw new Error('Membership not found');
+    if (acting.role !== 'admin') throw new Error('Only admin can demote coadmin');
+    if (target.role !== 'coadmin') throw new Error('Target is not a coadmin');
+    target.role = 'member';
+    localStorage.setItem('userMemberships', JSON.stringify(userMemberships));
   }
 
   private generateCommunityCode(): string {

@@ -14,21 +14,22 @@ export function BarterRequestModal({ listing, onClose, onSuccess }: BarterReques
   const [offerDescription, setOfferDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [offerValue, setOfferValue] = useState<number | ''>('');
+  const [offerType, setOfferType] = useState<'product' | 'service' | ''>('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!offerDescription.trim()) return;
-
+    if (!offerDescription.trim() || offerValue === '' || !offerType) return;
     setLoading(true);
     setError('');
     setStep('sending');
-
     try {
       await barterService.createBarterRequest({
         listingId: listing.id,
-        offerDescription: offerDescription.trim()
+        offerDescription: offerDescription.trim(),
+        offerValue: Number(offerValue),
+        offerType: offerType as 'product' | 'service',
       });
-      
       setStep('success');
       setTimeout(() => {
         onSuccess();
@@ -109,6 +110,36 @@ export function BarterRequestModal({ listing, onClose, onSuccess }: BarterReques
                     {offerDescription.length}/500 characters
                   </p>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    What is the estimated value of your offer?
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={offerValue}
+                    onChange={e => setOfferValue(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    placeholder="e.g. 50"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Is your offer a product or a service?
+                  </label>
+                  <select
+                    value={offerType}
+                    onChange={e => setOfferType(e.target.value as 'product' | 'service')}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    required
+                  >
+                    <option value="">Select type</option>
+                    <option value="product">Product</option>
+                    <option value="service">Service</option>
+                  </select>
+                </div>
 
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <h4 className="font-medium text-blue-900 mb-2">How it works:</h4>
@@ -131,7 +162,7 @@ export function BarterRequestModal({ listing, onClose, onSuccess }: BarterReques
                   </button>
                   <button
                     type="submit"
-                    disabled={loading || !offerDescription.trim()}
+                    disabled={loading || !offerDescription.trim() || offerValue === '' || !offerType}
                     className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
                   >
                     <Send size={18} />

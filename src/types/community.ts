@@ -20,6 +20,6 @@ export interface CommunityMember {
   name: string;
   email: string;
   joinedAt: string;
-  isAdmin: boolean;
+  role: 'admin' | 'coadmin' | 'member';
   isOnline: boolean;
 }

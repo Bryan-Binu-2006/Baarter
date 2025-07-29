@@ -10,6 +10,9 @@ interface CommunityContextType {
   joinCommunity: (code: string) => Promise<Community>;
   selectCommunity: (community: Community | null) => void;
   refreshCommunities: () => Promise<void>;
+  removeMember: (communityId: string, targetUserId: string, actingUserId: string) => Promise<void>;
+  promoteToCoadmin: (communityId: string, targetUserId: string, actingUserId: string) => Promise<void>;
+  demoteCoadmin: (communityId: string, targetUserId: string, actingUserId: string) => Promise<void>;
   loading: boolean;
 }
 
@@ -19,7 +22,7 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
   const [selectedCommunity, setSelectedCommunity] = useState<Community | null>(null);
   const [userCommunities, setUserCommunities] = useState<Community[]>([]);
   const [loading, setLoading] = useState(false);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
 
   const refreshCommunities = async () => {
     if (!isAuthenticated) return;
@@ -28,6 +31,15 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
     try {
       const communities = await communityService.getUserCommunities();
       setUserCommunities(communities);
+      // If the user is no longer a member or is banned, clear selectedCommunity
+      const bannedKey = selectedCommunity ? `banned_${selectedCommunity.id}` : null;
+      const banned = bannedKey ? JSON.parse(localStorage.getItem(bannedKey) || '[]') : [];
+      const isStillMember = selectedCommunity && communities.some(c => c.id === selectedCommunity.id);
+      const isBanned = selectedCommunity && user && banned.includes(user.id);
+      if (!isStillMember || isBanned) {
+        setSelectedCommunity(null);
+        localStorage.removeItem('selectedCommunityId');
+      }
       // Don't auto-select community - let user choose
       // This was causing the issue where users were taken directly to dashboard
     } catch (error) {
@@ -71,6 +83,13 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const removeMember = (communityId: string, targetUserId: string, actingUserId: string) =>
+    communityService.removeMember(communityId, targetUserId, actingUserId);
+  const promoteToCoadmin = (communityId: string, targetUserId: string, actingUserId: string) =>
+    communityService.promoteToCoadmin(communityId, targetUserId, actingUserId);
+  const demoteCoadmin = (communityId: string, targetUserId: string, actingUserId: string) =>
+    communityService.demoteCoadmin(communityId, targetUserId, actingUserId);
+
   // Restore selected community on app load
   useEffect(() => {
     const savedCommunityId = localStorage.getItem('selectedCommunityId');
@@ -90,6 +109,9 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
       joinCommunity,
       selectCommunity,
       refreshCommunities,
+      removeMember,
+      promoteToCoadmin,
+      demoteCoadmin,
       loading
     }}>
       {children}

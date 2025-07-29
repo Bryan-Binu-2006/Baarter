@@ -6,6 +6,8 @@ export interface BarterRequest {
   ownerId: string;
   ownerName: string;
   offerDescription: string;
+  offerValue: number;
+  offerType: 'product' | 'service';
   status: 'pending' | 'owner_accepted' | 'both_accepted' | 'rejected' | 'completed';
   ownerConfirmationCode?: string;
   requesterConfirmationCode?: string;
@@ -24,4 +26,6 @@ export interface BarterRequest {
 export interface CreateBarterRequestData {
   listingId: string;
   offerDescription: string;
+  offerValue: number;
+  offerType: 'product' | 'service';
 }
