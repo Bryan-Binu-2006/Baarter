@@ -16,6 +16,9 @@ class AuthService {
     const allUsers = JSON.parse(localStorage.getItem('allUsers') || '[]');
     const existingUser = allUsers.find((u: User) => u.email === credentials.email);
     
+    console.log('Login - allUsers:', allUsers);
+    console.log('Login - existingUser:', existingUser);
+    
     if (!existingUser) {
       throw new Error('User not found. Please sign up first.');
     }
@@ -24,6 +27,8 @@ class AuthService {
 
     // Store current user session
     localStorage.setItem('currentUser', JSON.stringify(existingUser));
+    
+    console.log('Login - stored currentUser:', existingUser);
     
     return {
       user: existingUser,

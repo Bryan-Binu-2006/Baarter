@@ -20,11 +20,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (token) {
+    const currentUser = localStorage.getItem('currentUser');
+    
+    if (token && currentUser) {
+      try {
+        const userData = JSON.parse(currentUser);
+        setUser(userData);
+      } catch (error) {
+        console.error('Error parsing current user:', error);
+        localStorage.removeItem('token');
+        localStorage.removeItem('currentUser');
+      }
+    } else if (token) {
+      // Fallback to token verification
       authService.verifyToken(token).then(userData => {
         setUser(userData);
       }).catch(() => {
         localStorage.removeItem('token');
+        localStorage.removeItem('currentUser');
       }).finally(() => {
         setLoading(false);
       });

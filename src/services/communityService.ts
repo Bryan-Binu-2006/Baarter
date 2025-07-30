@@ -58,13 +58,18 @@ class CommunityService {
 
     // Add user as admin member
     const userMemberships = JSON.parse(localStorage.getItem('userMemberships') || '[]');
-    userMemberships.push({
+    const newMembership = {
       userId: currentUser.id,
       communityId: mockCommunity.id,
       role: 'admin',
       joinedAt: new Date().toISOString()
-    });
+    };
+    userMemberships.push(newMembership);
     localStorage.setItem('userMemberships', JSON.stringify(userMemberships));
+    
+    console.log('createCommunity - currentUser:', currentUser);
+    console.log('createCommunity - newMembership:', newMembership);
+    console.log('createCommunity - all userMemberships:', userMemberships);
 
     return mockCommunity;
   }
@@ -117,7 +122,8 @@ class CommunityService {
     localStorage.setItem('userMemberships', JSON.stringify(userMemberships));
 
     // Update member count
-    community.memberCount = userMemberships.filter((m: any) => m.communityId === community.id).length;
+    const communityMembers = userMemberships.filter((m: any) => m.communityId === community.id);
+    community.memberCount = communityMembers.length;
     localStorage.setItem('allCommunities', JSON.stringify(allCommunities));
 
     return community;
@@ -130,12 +136,19 @@ class CommunityService {
     const allUsers = JSON.parse(localStorage.getItem('allUsers') || '[]');
     const userMemberships = JSON.parse(localStorage.getItem('userMemberships') || '[]');
     
+    console.log('getCommunityMembers - allUsers:', allUsers);
+    console.log('getCommunityMembers - userMemberships:', userMemberships);
+    console.log('getCommunityMembers - communityId:', communityId);
+    
     const communityMemberships = userMemberships.filter((m: any) => m.communityId === communityId);
+    
+    console.log('getCommunityMembers - communityMemberships:', communityMemberships);
     
     const members: CommunityMember[] = communityMemberships.map((membership: any) => {
       const user = allUsers.find((u: any) => u.id === membership.userId);
+      console.log('getCommunityMembers - mapping membership:', membership, 'to user:', user);
       return {
-        id: user?.id || membership.userId,
+        id: membership.userId, // Use the membership userId as the member id
         name: user?.name || 'Unknown User',
         email: user?.email || 'unknown@example.com',
         joinedAt: membership.joinedAt,
@@ -144,25 +157,39 @@ class CommunityService {
       };
     });
 
+    console.log('getCommunityMembers - final members:', members);
     return members;
   }
 
   async removeMember(communityId: string, targetUserId: string, actingUserId: string): Promise<void> {
+    await new Promise(resolve => setTimeout(resolve, 500)); // Add delay for consistency
+    
+    console.log('removeMember called with:', { communityId, targetUserId, actingUserId });
+    
     const userMemberships = JSON.parse(localStorage.getItem('userMemberships') || '[]');
     const acting = userMemberships.find((m: any) => m.userId === actingUserId && m.communityId === communityId);
     const target = userMemberships.find((m: any) => m.userId === targetUserId && m.communityId === communityId);
-    if (!acting || !target) throw new Error('Membership not found');
+    
+    console.log('Found memberships:', { acting, target });
+    
+    if (!acting) throw new Error('You are not a member of this community');
+    if (!target) throw new Error('Target user is not a member of this community');
+    
+    // Check permissions
     if (acting.role === 'admin') {
-      // Admin can remove anyone
-      if (target.role === 'admin') throw new Error('Admin cannot remove themselves');
+      // Admin can remove anyone except themselves
+      if (targetUserId === actingUserId) throw new Error('Admin cannot remove themselves');
     } else if (acting.role === 'coadmin') {
       // Coadmin can remove members only
-      if (target.role !== 'member') throw new Error('Coadmin can only remove members');
+      if (target.role !== 'member') throw new Error('Coadmin can only remove regular members');
     } else {
-      throw new Error('Insufficient permissions');
+      throw new Error('Insufficient permissions to remove members');
     }
+    
+    // Remove from memberships
     const updated = userMemberships.filter((m: any) => !(m.userId === targetUserId && m.communityId === communityId));
     localStorage.setItem('userMemberships', JSON.stringify(updated));
+    
     // Add to banned list
     const bannedKey = `banned_${communityId}`;
     const banned = JSON.parse(localStorage.getItem(bannedKey) || '[]');
@@ -170,30 +197,63 @@ class CommunityService {
       banned.push(targetUserId);
       localStorage.setItem(bannedKey, JSON.stringify(banned));
     }
+    
     // Remove all listings by this user in this community
     const allListings = JSON.parse(localStorage.getItem('communityListings') || '[]');
     const filteredListings = allListings.filter((listing: any) => !(listing.userId === targetUserId && listing.communityId === communityId));
     localStorage.setItem('communityListings', JSON.stringify(filteredListings));
+    
+    // Update member count in community
+    const allCommunities = JSON.parse(localStorage.getItem('allCommunities') || '[]');
+    const communityIndex = allCommunities.findIndex((c: any) => c.id === communityId);
+    if (communityIndex !== -1) {
+      const communityMembers = updated.filter((m: any) => m.communityId === communityId);
+      allCommunities[communityIndex].memberCount = communityMembers.length;
+      localStorage.setItem('allCommunities', JSON.stringify(allCommunities));
+    }
+    
+    console.log('Member removed successfully');
   }
 
   async promoteToCoadmin(communityId: string, targetUserId: string, actingUserId: string): Promise<void> {
+    await new Promise(resolve => setTimeout(resolve, 500)); // Add delay for consistency
+    
+    console.log('promoteToCoadmin called with:', { communityId, targetUserId, actingUserId });
+    
     const userMemberships = JSON.parse(localStorage.getItem('userMemberships') || '[]');
     const acting = userMemberships.find((m: any) => m.userId === actingUserId && m.communityId === communityId);
     const target = userMemberships.find((m: any) => m.userId === targetUserId && m.communityId === communityId);
-    if (!acting || !target) throw new Error('Membership not found');
+    
+    console.log('Found memberships:', { acting, target });
+    
+    if (!acting) throw new Error('You are not a member of this community');
+    if (!target) throw new Error('Target user is not a member of this community');
+    
     if (acting.role !== 'admin') throw new Error('Only admin can promote to coadmin');
     if (target.role === 'admin') throw new Error('Cannot promote admin');
+    if (target.role === 'coadmin') throw new Error('User is already a coadmin');
+    
+    // Update the target's role
     target.role = 'coadmin';
     localStorage.setItem('userMemberships', JSON.stringify(userMemberships));
+    
+    console.log('Member promoted successfully');
   }
 
   async demoteCoadmin(communityId: string, targetUserId: string, actingUserId: string): Promise<void> {
+    await new Promise(resolve => setTimeout(resolve, 500)); // Add delay for consistency
+    
     const userMemberships = JSON.parse(localStorage.getItem('userMemberships') || '[]');
     const acting = userMemberships.find((m: any) => m.userId === actingUserId && m.communityId === communityId);
     const target = userMemberships.find((m: any) => m.userId === targetUserId && m.communityId === communityId);
-    if (!acting || !target) throw new Error('Membership not found');
+    
+    if (!acting) throw new Error('You are not a member of this community');
+    if (!target) throw new Error('Target user is not a member of this community');
+    
     if (acting.role !== 'admin') throw new Error('Only admin can demote coadmin');
     if (target.role !== 'coadmin') throw new Error('Target is not a coadmin');
+    
+    // Update the target's role
     target.role = 'member';
     localStorage.setItem('userMemberships', JSON.stringify(userMemberships));
   }

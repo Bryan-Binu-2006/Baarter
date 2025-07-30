@@ -4,6 +4,7 @@ import { BarterRequest } from '../types/barter';
 import { useAuth } from '../hooks/useAuth';
 import BarterChatModal from './BarterChatModal';
 import { notificationService } from '../services/notificationService';
+import { getBalance } from '../services/coinService';
 
 interface BarterRequestsModalProps {
   open: boolean;
@@ -196,8 +197,25 @@ const BarterRequestsModal: React.FC<BarterRequestsModalProps> = ({ open, onClose
                         &times;
                       </button>
                       <div className="font-medium text-gray-900 mb-1">{req.requesterName} wants to trade for <span className="font-semibold">{req.listing.title}</span></div>
-                      <div className="text-gray-700 text-sm mb-2">Offer: {req.offerDescription}</div>
+                      <div className="text-gray-700 text-sm mb-2">
+                        <div className="font-medium">Offer: {req.offerDescription}</div>
+                        <div className="text-emerald-600 font-semibold">Estimated Value: ${req.offerValue.toLocaleString()}</div>
+                        <div className="text-xs text-gray-500">Type: {req.offerType}</div>
+                      </div>
                       <div className="text-xs text-gray-500 mb-2">Requested: {new Date(req.createdAt).toLocaleString()}</div>
+                      {needsCoins && (
+                        <div className="text-xs text-red-600 font-semibold mb-2">
+                          Value mismatch: You need {valueDiff} more coins to match the listing value.
+                          {!requesterHasCoins && (
+                            <button
+                              className="ml-2 px-2 py-1 bg-emerald-500 text-white rounded hover:bg-emerald-600 text-xs font-semibold"
+                              onClick={() => window.dispatchEvent(new CustomEvent('openBuyCoinsModal'))}
+                            >
+                              Buy Coins
+                            </button>
+                          )}
+                        </div>
+                      )}
                       <div className="flex flex-col space-y-2">
                         {renderStatus(req, true)}
                       </div>
@@ -222,7 +240,11 @@ const BarterRequestsModal: React.FC<BarterRequestsModalProps> = ({ open, onClose
                         &times;
                       </button>
                       <div className="font-medium text-gray-900 mb-1">You requested <span className="font-semibold">{req.listing.title}</span></div>
-                      <div className="text-gray-700 text-sm mb-2">Offer: {req.offerDescription}</div>
+                      <div className="text-gray-700 text-sm mb-2">
+                        <div className="font-medium">Offer: {req.offerDescription}</div>
+                        <div className="text-emerald-600 font-semibold">Estimated Value: ${req.offerValue.toLocaleString()}</div>
+                        <div className="text-xs text-gray-500">Type: {req.offerType}</div>
+                      </div>
                       <div className="text-xs text-gray-500 mb-2">Requested: {new Date(req.createdAt).toLocaleString()}</div>
                       <div className="flex flex-col space-y-2">
                         {renderStatus(req, false)}

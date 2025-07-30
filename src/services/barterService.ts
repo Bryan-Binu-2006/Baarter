@@ -1,5 +1,6 @@
 import { BarterRequest, CreateBarterRequestData } from '../types/barter';
 import { Listing } from '../types/listing';
+import { getBalance, spendCoins, transferCoins } from './coinService';
 
 const API_BASE = 'http://localhost:5000/api';
 
@@ -86,6 +87,19 @@ class BarterService {
       all[idx].requesterConfirmationCode = generateCode();
       all[idx].ownerConfirmed = false;
       all[idx].requesterConfirmed = false;
+      // Lock coins if value mismatch
+      const req = all[idx];
+      const valueDiff = req.listing.estimatedValue - req.offerValue;
+      if (valueDiff > 0) {
+        // Lock coins from requester
+        const locked = JSON.parse(localStorage.getItem('lockedCoins') || '{}');
+        if (getBalance(req.requesterId) < valueDiff) {
+          throw new Error('Requester does not have enough coins to match the value.');
+        }
+        spendCoins(req.requesterId, valueDiff);
+        locked[req.id] = valueDiff;
+        localStorage.setItem('lockedCoins', JSON.stringify(locked));
+      }
     }
     this.saveAllRequests(all);
     return all[idx];
@@ -123,6 +137,14 @@ class BarterService {
       const allListings = JSON.parse(localStorage.getItem('communityListings') || '[]');
       const updatedListings = allListings.filter((listing: any) => listing.id !== req.listingId);
       localStorage.setItem('communityListings', JSON.stringify(updatedListings));
+      // Transfer locked coins to owner
+      const locked = JSON.parse(localStorage.getItem('lockedCoins') || '{}');
+      const valueDiff = locked[req.id] || 0;
+      if (valueDiff > 0) {
+        transferCoins(req.requesterId, req.ownerId, valueDiff);
+        delete locked[req.id];
+        localStorage.setItem('lockedCoins', JSON.stringify(locked));
+      }
     }
     this.saveAllRequests(all);
     return req;

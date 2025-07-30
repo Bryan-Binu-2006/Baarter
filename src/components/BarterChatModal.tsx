@@ -25,7 +25,6 @@ const BarterChatModal: React.FC<BarterChatModalProps> = ({ request, open, onClos
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [barter, setBarter] = useState(request);
-  const [decision, setDecision] = useState<'accepted' | 'declined' | null>(null);
   const [codeInput, setCodeInput] = useState('');
   const [codeError, setCodeError] = useState('');
   const [codeLoading, setCodeLoading] = useState(false);
@@ -40,7 +39,6 @@ const BarterChatModal: React.FC<BarterChatModalProps> = ({ request, open, onClos
       const all = JSON.parse(localStorage.getItem('barterRequests') || '[]');
       const latest = all.find((r: any) => r.id === request.id);
       setBarter(latest || request);
-      setDecision(null);
       setCodeInput('');
       setCodeError('');
     }
@@ -87,7 +85,6 @@ const BarterChatModal: React.FC<BarterChatModalProps> = ({ request, open, onClos
   const canDecide = barter.status === 'both_accepted' && !hasAccepted && !hasDeclined;
 
   const handleAccept = async () => {
-    setDecision('accepted');
     // Mark this user's confirmation as true
     const all = JSON.parse(localStorage.getItem('barterRequests') || '[]');
     const idx = all.findIndex((r: any) => r.id === barter.id);
@@ -102,7 +99,6 @@ const BarterChatModal: React.FC<BarterChatModalProps> = ({ request, open, onClos
   };
 
   const handleDecline = async () => {
-    setDecision('declined');
     // Mark barter as rejected
     const all = JSON.parse(localStorage.getItem('barterRequests') || '[]');
     const idx = all.findIndex((r: any) => r.id === barter.id);

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { LogOut, ArrowLeft, Bell } from 'lucide-react';
+import { LogOut, ArrowLeft, Bell, Coins } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useCommunity } from '../contexts/CommunityContext';
 import BarterRequestsModal from './BarterRequestsModal';
 import NotificationCenter from './NotificationCenter';
 import { notificationService } from '../services/notificationService';
+import { getBalance, addCoins, COIN_PRICE_RUPEES } from '../services/coinService';
 
 export function Navigation() {
   const { user, logout } = useAuth();
@@ -12,14 +13,28 @@ export function Navigation() {
   const [showRequests, setShowRequests] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [showBuyCoins, setShowBuyCoins] = useState(false);
+  const [buyAmount, setBuyAmount] = useState(10);
+  const [buyLoading, setBuyLoading] = useState(false);
+  const [coinBalance, setCoinBalance] = useState(user ? getBalance(user.id) : 0);
 
   useEffect(() => {
     setUnreadCount(notificationService.getUnreadCount());
     const interval = setInterval(() => {
       setUnreadCount(notificationService.getUnreadCount());
     }, 2000);
-    return () => clearInterval(interval);
+    // Listen for openBuyCoinsModal event
+    const openBuyCoinsListener = () => setShowBuyCoins(true);
+    window.addEventListener('openBuyCoinsModal', openBuyCoinsListener);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('openBuyCoinsModal', openBuyCoinsListener);
+    };
   }, []);
+
+  useEffect(() => {
+    if (user) setCoinBalance(getBalance(user.id));
+  }, [user]);
 
   const handleLogout = () => {
     logout();
@@ -30,6 +45,17 @@ export function Navigation() {
 
   const handleBackToCommunities = () => {
     selectCommunity(null);
+  };
+
+  const handleBuyCoins = () => {
+    if (!user) return;
+    setBuyLoading(true);
+    setTimeout(() => {
+      addCoins(user.id, buyAmount);
+      setCoinBalance(getBalance(user.id));
+      setBuyLoading(false);
+      setShowBuyCoins(false);
+    }, 1000);
   };
 
   return (
@@ -89,6 +115,17 @@ export function Navigation() {
               <span className="text-gray-700 font-medium">
                 {user?.name || user?.email?.split('@')[0]}
               </span>
+              {/* Coin Balance */}
+              <span className="flex items-center ml-2 px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-semibold">
+                <Coins size={16} className="mr-1" />
+                {coinBalance} Coins
+              </span>
+              <button
+                onClick={() => setShowBuyCoins(true)}
+                className="ml-2 px-2 py-1 bg-emerald-500 text-white rounded hover:bg-emerald-600 text-xs font-semibold"
+              >
+                Buy Coins
+              </button>
             </div>
             <button
               onClick={handleLogout}
@@ -100,6 +137,38 @@ export function Navigation() {
           </div>
         </div>
       </div>
+      {/* Buy Coins Modal */}
+      {showBuyCoins && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 relative">
+            <button onClick={() => setShowBuyCoins(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-700">&times;</button>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Buy Barter Coins</h2>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">How many coins do you want to buy?</label>
+              <input
+                type="number"
+                min={1}
+                value={buyAmount}
+                onChange={e => setBuyAmount(Number(e.target.value))}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              />
+            </div>
+            <div className="mb-4 text-sm text-gray-700">
+              <span className="font-semibold">1 Coin = 2 Rupees</span> (Demo only, no real payment)
+            </div>
+            <div className="mb-6 text-lg font-bold text-emerald-700">
+              Total: {buyAmount} Coins = {buyAmount * COIN_PRICE_RUPEES} Rupees
+            </div>
+            <button
+              onClick={handleBuyCoins}
+              disabled={buyLoading || buyAmount < 1}
+              className="w-full px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+            >
+              {buyLoading ? 'Processing...' : `Buy ${buyAmount} Coins`}
+            </button>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }

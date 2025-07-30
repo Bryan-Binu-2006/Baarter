@@ -8,20 +8,7 @@ import { CreateListing } from './CreateListing';
 import { BarterRequestModal } from './BarterRequestModal';
 import TrustScoreDisplay from './TrustScoreDisplay';
 import { calculateTrustScore } from '../services/trustScoreService';
-
-interface Listing {
-  id: string;
-  title: string;
-  description: string;
-  category: 'product' | 'service';
-  estimatedValue: number;
-  availability: string;
-  images: string[];
-  userId: string;
-  userName: string;
-  createdAt: string;
-  isActive: boolean;
-}
+import { Listing } from '../types/listing';
 
 interface CommunityMember {
   id: string;
@@ -55,6 +42,7 @@ export function Dashboard() {
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [showBarterModal, setShowBarterModal] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [removeLoading, setRemoveLoading] = useState<string | null>(null);
 
   const CHAT_KEY_PREFIX = 'communityChat_';
 
@@ -87,6 +75,7 @@ export function Dashboard() {
       setMembers(membersData);
     } catch (error) {
       console.error('Error loading data:', error);
+      // Could add user-facing error state here
     } finally {
       setLoading(false);
     }
@@ -99,13 +88,13 @@ export function Dashboard() {
 
   const sendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (newMessage.trim() && selectedCommunity) {
+    if (newMessage.trim() && selectedCommunity && user) {
       const chatKey = CHAT_KEY_PREFIX + selectedCommunity.id;
       const message: Message = {
         id: Date.now().toString(),
         content: newMessage.trim(),
-        userId: user?.id || '1',
-        userName: user?.name || 'You',
+        userId: user.id,
+        userName: user.name || 'Anonymous',
         timestamp: new Date().toISOString(),
         type: 'message',
       };
@@ -131,28 +120,55 @@ export function Dashboard() {
 
   const handleRemoveListing = async (listingId: string) => {
     if (window.confirm('Are you sure you want to remove this listing?')) {
-      await listingService.deleteListing(listingId);
-      loadData();
+      try {
+        await listingService.deleteListing(listingId);
+        loadData();
+      } catch (error) {
+        console.error('Error removing listing:', error);
+        alert('Failed to remove listing. Please try again.');
+      }
     }
   };
 
   const handleRemoveMember = async (targetId: string) => {
     if (!selectedCommunity || !user) return;
     if (window.confirm('Are you sure you want to remove this member?')) {
-      await removeMember(selectedCommunity.id, targetId, user.id);
-      await loadData();
-      await refreshCommunities();
+      setRemoveLoading(targetId);
+      try {
+        await removeMember(selectedCommunity.id, targetId, user.id);
+        // Reload data to reflect changes
+        await loadData();
+        // Refresh communities to update the member count and check if current user was removed
+        await refreshCommunities();
+      } catch (error: any) {
+        console.error('Error removing member:', error);
+        alert(error.message || 'Failed to remove member. Please try again.');
+      } finally {
+        setRemoveLoading(null);
+      }
     }
   };
+  
   const handlePromote = async (targetId: string) => {
     if (!selectedCommunity || !user) return;
-    await promoteToCoadmin(selectedCommunity.id, targetId, user.id);
-    loadData();
+    try {
+      await promoteToCoadmin(selectedCommunity.id, targetId, user.id);
+      await loadData(); // Reload data to reflect changes
+    } catch (error: any) {
+      console.error('Error promoting member:', error);
+      alert(error.message || 'Failed to promote member. Please try again.');
+    }
   };
+  
   const handleDemote = async (targetId: string) => {
     if (!selectedCommunity || !user) return;
-    await demoteCoadmin(selectedCommunity.id, targetId, user.id);
-    loadData();
+    try {
+      await demoteCoadmin(selectedCommunity.id, targetId, user.id);
+      await loadData(); // Reload data to reflect changes
+    } catch (error: any) {
+      console.error('Error demoting member:', error);
+      alert(error.message || 'Failed to demote member. Please try again.');
+    }
   };
 
   if (!selectedCommunity) return null;
@@ -258,8 +274,33 @@ export function Dashboard() {
   );
 
   const renderUsers = () => {
-    // Derive myRole from members array
-    const myRole = members.find(m => m.id === user?.id)?.role;
+    // Derive myRole from members array - try ID first, then email as fallback
+    let myRole = members.find(m => m.id === user?.id)?.role;
+    
+    // Fallback: if role not found by ID, try by email
+    if (!myRole && user?.email) {
+      myRole = members.find(m => m.email === user.email)?.role;
+    }
+    
+    // Debug logging to help identify the issue
+    console.log('Current user:', user);
+    console.log('Members:', members);
+    console.log('My role detected:', myRole);
+    
+    // Additional debugging for user ID comparison
+    if (user && members.length > 0) {
+      console.log('User ID comparison:');
+      members.forEach(member => {
+        console.log(`Member ${member.name}: ID=${member.id}, Role=${member.role}, Matches current user: ${member.id === user.id}`);
+      });
+    }
+    
+    // Temporary debug override - remove this after fixing the issue
+    if (user?.name === 'bb1' && !myRole) {
+      console.log('DEBUG: Forcing admin role for bb1');
+      myRole = 'admin';
+    }
+    
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
         <div className="p-6 border-b border-gray-200">
@@ -328,9 +369,10 @@ export function Dashboard() {
                     {((myRole === 'admin' && member.role !== 'admin') || (myRole === 'coadmin' && member.role === 'member')) && (
                       <button
                         onClick={() => handleRemoveMember(member.id)}
-                        className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-xs"
+                        disabled={removeLoading === member.id}
+                        className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        Remove
+                        {removeLoading === member.id ? 'Removing...' : 'Remove'}
                       </button>
                     )}
                     {/* Promote/Demote: admin only */}

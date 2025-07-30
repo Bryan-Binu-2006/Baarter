@@ -83,12 +83,17 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const removeMember = (communityId: string, targetUserId: string, actingUserId: string) =>
-    communityService.removeMember(communityId, targetUserId, actingUserId);
-  const promoteToCoadmin = (communityId: string, targetUserId: string, actingUserId: string) =>
-    communityService.promoteToCoadmin(communityId, targetUserId, actingUserId);
-  const demoteCoadmin = (communityId: string, targetUserId: string, actingUserId: string) =>
-    communityService.demoteCoadmin(communityId, targetUserId, actingUserId);
+  const removeMember = async (communityId: string, targetUserId: string, actingUserId: string) => {
+    await communityService.removeMember(communityId, targetUserId, actingUserId);
+  };
+  
+  const promoteToCoadmin = async (communityId: string, targetUserId: string, actingUserId: string) => {
+    await communityService.promoteToCoadmin(communityId, targetUserId, actingUserId);
+  };
+  
+  const demoteCoadmin = async (communityId: string, targetUserId: string, actingUserId: string) => {
+    await communityService.demoteCoadmin(communityId, targetUserId, actingUserId);
+  };
 
   // Restore selected community on app load
   useEffect(() => {
